@@ -17,6 +17,8 @@ STATE_FILE = "last_results.json"
 # Pull your bot creds from environment variables
 TOKEN   = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+print("DEBUG: Telegram token starts with:", TOKEN[:8], "…")
+print("DEBUG: Telegram chat_id is:", CHAT_ID)
 
 bot = Bot(token=TOKEN)
 
@@ -47,7 +49,7 @@ def main():
         try:
             current = get_last_result(url)
             last    = state.get(name)
-
+            print(f"DEBUG: {name} – last={last!r}, current={current!r}")
             if last and current == "Defeat" and last != "Defeat":
                 bot.send_message(
                     chat_id=CHAT_ID,
