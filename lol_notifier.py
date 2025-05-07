@@ -2,12 +2,13 @@ import os, json, time
 import requests
 from bs4 import BeautifulSoup
 
-FORCE_ALERT = True
+FORCE_ALERT = False
 
 # ── CONFIG ───────────────────────────────────────────────────────────
 FRIENDS = {
     "LinguetySpaghett": "https://op.gg/summoners/na/LinguetySpaghett-YoBro?queue_type=SOLORANKED",
     "Xraydady":        "https://op.gg/summoners/na/Xraydady-9201?queue_type=SOLORANKED",
+    "lzsanji":          "https://op.gg/lol/summoners/na/lzsanji-WNDRN?queue_type=SOLORANKED"
     # add more friends here as "Name": "Full-URL"
 }
 STATE_FILE = "last_results.json"
