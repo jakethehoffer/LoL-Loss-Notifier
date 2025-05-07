@@ -1,6 +1,7 @@
 name: LoL Loss Notifier
 
 on:
+  workflow_dispatch:    # ← allows manual runs
   schedule:
     # every 5 minutes
     - cron:  '*/5 * * * *'
