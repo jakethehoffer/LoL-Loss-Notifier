@@ -18,7 +18,7 @@ STATE_FILE = "last_results.json"
 TOKEN   = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 print("DEBUG: Telegram token starts with:", TOKEN[:8], "…")
-print("DEBUG: Telegram chat_id is:", CHAT_ID)
+print("DEBUG: Telegram chat_id starts with:", CHAT_ID[:5])
 
 bot = Bot(token=TOKEN)
 
