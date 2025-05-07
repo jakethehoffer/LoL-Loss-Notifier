@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import Bot
 
-FORCE_TEST_DEFEAT = True
+FORCE_ALERT = True
 
 # ── CONFIG ───────────────────────────────────────────────────────────
 FRIENDS = {
@@ -34,8 +34,6 @@ def save_state(state):
         json.dump(state, f)
 
 def get_last_result(url):
-    if FORCE_TEST_DEFEAT:
-        return "Defeat"
     headers = {"User-Agent": "Mozilla/5.0"}
     resp = requests.get(url, headers=headers, timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -48,13 +46,22 @@ def main():
     for name, url in FRIENDS.items():
         try:
             current = get_last_result(url)
-            last    = state.get(name)
-            print(f"DEBUG: {name} – last={last!r}, current={current!r}")
-            if last and current == "Defeat" and last != "Defeat":
+            last = state.get(name)
+
+            # ── DEBUG/TEST NOTIFICATION LOGIC ─────────────────────
+            notify = False
+            if FORCE_ALERT:
+                notify = True
+            elif last and current == "Defeat" and last != current:
+                notify = True
+
+            if notify:
+                print(f"DEBUG: Sending alert for {name}")
                 bot.send_message(
                     chat_id=CHAT_ID,
                     text=f"👎 {name} just lost a ranked game!"
                 )
+            # ───────────────────────────────────────────────────────
 
             state[name] = current
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {name}: {current}")
