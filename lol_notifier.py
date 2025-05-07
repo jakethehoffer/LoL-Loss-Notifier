@@ -1,7 +1,6 @@
 import os, json, time
 import requests
 from bs4 import BeautifulSoup
-from telegram import Bot
 
 FORCE_ALERT = True
 
@@ -20,7 +19,12 @@ CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 print("DEBUG: Telegram token starts with:", TOKEN[:8], "…")
 print("DEBUG: Telegram chat_id starts with:", CHAT_ID[:5])
 
-bot = Bot(token=TOKEN)
+def send_telegram_message(text):
+    url     = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": text}
+    resp    = requests.post(url, data=payload, timeout=10)
+    print("DEBUG: Telegram API response:", resp.status_code, resp.text)
+    return resp.ok
 
 def load_state():
     try:
@@ -56,11 +60,10 @@ def main():
                 notify = True
 
             if notify:
+                msg = f"👎 {name} just lost a ranked game!"
                 print(f"DEBUG: Sending alert for {name}")
-                bot.send_message(
-                    chat_id=CHAT_ID,
-                    text=f"👎 {name} just lost a ranked game!"
-                )
+                ok = send_telegram_message(msg)
+                print("DEBUG: send_telegram_message returned", ok)
             # ───────────────────────────────────────────────────────
 
             state[name] = current
