@@ -3,6 +3,8 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import Bot
 
+FORCE_TEST_DEFEAT = True
+
 # ── CONFIG ───────────────────────────────────────────────────────────
 FRIENDS = {
     "LinguetySpaghett": "https://op.gg/summoners/na/LinguetySpaghett-YoBro?queue_type=SOLORANKED",
@@ -30,6 +32,8 @@ def save_state(state):
         json.dump(state, f)
 
 def get_last_result(url):
+    if FORCE_TEST_DEFEAT:
+        return "Defeat"
     headers = {"User-Agent": "Mozilla/5.0"}
     resp = requests.get(url, headers=headers, timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
