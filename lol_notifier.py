@@ -1,6 +1,10 @@
 import os, json, time
 import requests
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 FORCE_ALERT = False
 
@@ -38,21 +42,34 @@ def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
-def get_last_result(url):
-    headers = {"User-Agent":"Mozilla/5.0"}
-    resp = requests.get(url, headers=headers, timeout=15)
-    soup = BeautifulSoup(resp.text, "html.parser")
-    # find first <strong> whose text is Victory or Defeat
-    strong = soup.find("strong", text=lambda t: t in ("Victory","Defeat"))
-    return strong.text.strip() if strong else None
+def get_last_result(driver, url):
+    driver.get(url)
+    # wait for the Recent Games header to appear
+    WebDriverWait(driver, 30).until(
+        EC.presence_of_element_located((By.XPATH, "//div[contains(text(),'Recent Games')]"))
+    )
+    # then grab the Victory/Defeat <strong>
+    elem = WebDriverWait(driver, 30).until(
+        EC.visibility_of_element_located((
+            By.XPATH,
+            "//main//strong[normalize-space(text())='Victory' or normalize-space(text())='Defeat']"
+        ))
+    )
+    return elem.text.strip()
 
 
 def main():
+    opts = webdriver.ChromeOptions()
+    opts.add_argument("--headless")
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    driver = webdriver.Chrome(options=opts)
+
     state = load_state()
 
     for name, url in FRIENDS.items():
         try:
-            current = get_last_result(url)
+            current = get_last_result(driver, url)
             last = state.get(name)
 
             # ── DEBUG/TEST NOTIFICATION LOGIC ─────────────────────
@@ -76,6 +93,8 @@ def main():
             print(f"Error checking {name}: {e}")
 
     save_state(state)
+    driver.quit()
+
 
 if __name__ == "__main__":
     main()
