@@ -5,6 +5,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
 
 FORCE_ALERT = False
 
@@ -60,10 +61,16 @@ def get_last_result(driver, url):
 
 def main():
     opts = webdriver.ChromeOptions()
+    # point at the Chromium binary
+    opts.binary_location = "/usr/bin/chromium-browser"
     opts.add_argument("--headless")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(options=opts)
+
+    # tell Selenium where chromedriver lives (installed by apt)
+    service = Service("/usr/bin/chromedriver")
+
+    driver = webdriver.Chrome(service=service, options=opts)
 
     state = load_state()
 
