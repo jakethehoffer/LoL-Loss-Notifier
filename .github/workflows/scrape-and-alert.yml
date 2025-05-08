@@ -12,37 +12,36 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repo
-      - name: Check out repo
-        uses: actions/checkout@v4
+      # 1) Checkout with write permissions
+      - uses: actions/checkout@v4
         with:
           persist-credentials: true
 
+      # 2) Install Chrome & Chromedriver
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      # 3) Setup Python
+      - uses: actions/setup-python@v4
         with:
-          python-version: 3.x
+          python-version: '3.x'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Install dependencies
+      # 4) Install Python libs (including selenium)
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt selenium
+
+      # 5) Run your notifier
       - name: Run notifier
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python lol_notifier.py
+        run: python lol_notifier.py
 
+      # 6) Commit updated last_results.json back to repo
       - name: Commit updated state
         uses: EndBug/add-and-commit@v9
         with:
