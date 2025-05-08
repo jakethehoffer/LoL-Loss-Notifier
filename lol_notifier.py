@@ -42,8 +42,23 @@ def get_last_result(url):
     headers = {"User-Agent": "Mozilla/5.0"}
     resp = requests.get(url, headers=headers, timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
-    strong = soup.find("strong", text=lambda t: t in ("Victory","Defeat"))
-    return strong.text.strip() if strong else None
+
+    # 1) Find the <strong> inside the first <button class="cursor-default">
+    btn_strong = soup.select_one("main button.cursor-default strong")
+    if btn_strong:
+        return btn_strong.get_text(strip=True)
+
+    # 2) Fallback: look for any <strong> literally equal to 'Victory' or 'Defeat'
+    strong = soup.find(
+        "strong",
+        string=lambda s: s and s.strip() in ("Victory", "Defeat")
+    )
+    if strong:
+        return strong.get_text(strip=True)
+
+    # 3) If we still didn’t find it, return None (and you’ll see an error in your logs)
+    return None
+
 
 def main():
     state = load_state()
