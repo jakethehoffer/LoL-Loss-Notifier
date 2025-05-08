@@ -58,8 +58,12 @@ def get_last_result(url):
         "strong",
         string=lambda txt: txt and txt.strip() in ("Victory", "Defeat")
     )
-
-    return result_tag.string.strip() if result_tag else None
+    if result_tag:
+        print(result_tag.string.strip())
+        return result_tag.string.strip()
+    else:
+        print("strip not found")
+        return None
 
 
 def main():
