@@ -17,6 +17,10 @@ FRIENDS = {
     # add more friends here as "Name": "Full-URL"
 }
 STATE_FILE = "last_results.json"
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+}
+
 # ─────────────────────────────────────────────────────────────────────
 
 # Pull your bot creds from environment variables
@@ -43,20 +47,22 @@ def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
-def get_last_result(driver, url):
-    driver.get(url)
-    # wait for the Recent Games header to appear
-    WebDriverWait(driver, 30).until(
-        EC.presence_of_element_located((By.XPATH, "//div[contains(text(),'Recent Games')]"))
-    )
-    # then grab the Victory/Defeat <strong>
-    elem = WebDriverWait(driver, 30).until(
-        EC.visibility_of_element_located((
-            By.XPATH,
-            "//main//strong[normalize-space(text())='Victory' or normalize-space(text())='Defeat']"
-        ))
-    )
-    return elem.text.strip()
+def get_last_result(url):
+    resp = requests.get(url, headers=HEADERS, timeout=10)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Try the common op.gg “GameResult” div
+    div = soup.find("div", class_="GameResult")
+    if div and div.text.strip():
+        return div.text.strip()
+
+    # Fallback: look for a <strong>Victory</strong> or <strong>Defeat</strong>
+    strong = soup.find("strong", text=lambda t: t in ("Victory", "Defeat"))
+    if strong:
+        return strong.text.strip()
+
+    raise ValueError(f"Could not find a recent game result on {url}")
 
 
 def main():
@@ -76,7 +82,7 @@ def main():
 
     for name, url in FRIENDS.items():
         try:
-            current = get_last_result(driver, url)
+            current = get_last_result(url)
             last = state.get(name)
 
             # ── DEBUG/TEST NOTIFICATION LOGIC ─────────────────────
