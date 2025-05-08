@@ -50,19 +50,30 @@ def save_state(state):
 def get_last_result(url):
     resp = requests.get(url, headers=HEADERS, timeout=10)
     resp.raise_for_status()
+
     soup = BeautifulSoup(resp.text, "html.parser")
+    script = soup.find("script", id="__NEXT_DATA__", type="application/json")
+    if not script or not script.string:
+        raise ValueError("No Next.js data found on page")
 
-    # Try the common op.gg “GameResult” div
-    div = soup.find("div", class_="GameResult")
-    if div and div.text.strip():
-        return div.text.strip()
+    data = json.loads(script.string)
+    # The exact path can vary—op.gg tends to nest recent games under pageProps
+    props = data.get("props", {}) \
+                .get("pageProps", {})
+    recent = props.get("recentGames") or props.get("matches")
+    if not recent or "games" not in recent:
+        raise ValueError("Couldn't locate recent game list in JSON")
 
-    # Fallback: look for a <strong>Victory</strong> or <strong>Defeat</strong>
-    strong = soup.find("strong", text=lambda t: t in ("Victory", "Defeat"))
-    if strong:
-        return strong.text.strip()
+    first_game = recent["games"][0]
+    # most entries use a boolean "win" key
+    if "win" in first_game:
+        return "Victory" if first_game["win"] else "Defeat"
+    # fallback if they named it differently
+    result = first_game.get("result") or first_game.get("gameResult")
+    if result:
+        return result.capitalize()
 
-    raise ValueError(f"Could not find a recent game result on {url}")
+    raise ValueError("Couldn't parse win/lose from JSON")
 
 
 def main():
