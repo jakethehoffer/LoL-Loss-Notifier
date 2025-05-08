@@ -48,32 +48,18 @@ def save_state(state):
         json.dump(state, f)
 
 def get_last_result(url):
-    resp = requests.get(url, headers=HEADERS, timeout=10)
+    resp = requests.get(url)
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, "html.parser")
-    script = soup.find("script", id="__NEXT_DATA__", type="application/json")
-    if not script or not script.string:
-        raise ValueError("No Next.js data found on page")
 
-    data = json.loads(script.string)
-    # The exact path can vary—op.gg tends to nest recent games under pageProps
-    props = data.get("props", {}) \
-                .get("pageProps", {})
-    recent = props.get("recentGames") or props.get("matches")
-    if not recent or "games" not in recent:
-        raise ValueError("Couldn't locate recent game list in JSON")
+    # look for a <strong> tag whose exact text is Victory or Defeat
+    result_tag = soup.find(
+        "strong",
+        string=lambda txt: txt and txt.strip() in ("Victory", "Defeat")
+    )
 
-    first_game = recent["games"][0]
-    # most entries use a boolean "win" key
-    if "win" in first_game:
-        return "Victory" if first_game["win"] else "Defeat"
-    # fallback if they named it differently
-    result = first_game.get("result") or first_game.get("gameResult")
-    if result:
-        return result.capitalize()
-
-    raise ValueError("Couldn't parse win/lose from JSON")
+    return result_tag.string.strip() if result_tag else None
 
 
 def main():
