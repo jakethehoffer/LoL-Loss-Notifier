@@ -1,34 +1,50 @@
 name: LoL Loss Notifier
 
-on:
-  schedule:                           # run every 5 min
-    - cron:  '*/5 * * * *'
-  workflow_dispatch:                  # manual “Run workflow” button
+# ── 1. Give the automatic GITHUB_TOKEN push rights ────────────────────────────
+permissions:
+  contents: write        # ← critical; allows commits & pushes
 
+# ── 2. Triggers ───────────────────────────────────────────────────────────────
+on:
+  schedule:
+    - cron: '*/5 * * * *'      # run every 5 min
+  workflow_dispatch:           # manual “Run workflow” button
+
+# ── 3. Job definition ─────────────────────────────────────────────────────────
 jobs:
   notify:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+    # 3-A Checkout (must fetch full history for pushes)
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}   # explicit, now has write
+        fetch-depth: 0                       # needed for committing back
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
+    # 3-B Python toolchain
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+    # 3-C Install dependencies
+    - name: Install dependencies
+      run: pip install -r requirements.txt
 
-      - name: Run loss notifier
-        env:
-          TELEGRAM_TOKEN:  ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python lol_notifier.py
+    # 3-D Run the loss-detector script
+    - name: Run loss notifier
+      env:
+        TELEGRAM_TOKEN:  ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: python lol_notifier.py
 
-      - name: Persist state file
-        run: |
-          git config --global user.email "bot@users.noreply.github.com"
-          git config --global user.name  "loss-notifier-action"
-          git add last_games.json
-          git commit -m "update state" || echo "nothing to commit"
-          git push
+    # 3-E Commit / push updated state file back to repo
+    - name: Persist state file
+      run: |
+        git config --global user.email "bot@users.noreply.github.com"
+        git config --global user.name  "loss-notifier-action"
+        git add last_games.json
+        git commit -m "update state" || echo "nothing to commit"
+        git push
