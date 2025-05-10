@@ -1,22 +1,38 @@
-# scrape-and-alert.yml  (trimmed)
-steps:
-  - uses: actions/checkout@v4
+# .github/workflows/scrape-and-alert.yml
+name: LoL Loss Notifier
 
-  - uses: actions/setup-python@v4
-    with: { python-version: '3.x' }
+permissions:
+  contents: write
 
-  - name: Install deps
-    run: pip install requests
+# ── KEEP THIS ─────────────────────────────────────────────
+on:
+  workflow_dispatch:          # run manually from the Actions tab
+  schedule:                   # run every 5 minutes
+    - cron: "*/5 * * * *"
+# ───────────────────────────────────────────────────────────
 
-  - name: Run notifier
-    env:
-      TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-    run: python lol_notifier.py
+jobs:
+  notify:
+    runs-on: ubuntu-latest
 
-  - name: Commit state
-    uses: EndBug/add-and-commit@v9
-    with:
-      add: last_results.json
-      message: Update last_results.json
-#
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Run notifier
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python lol_notifier.py
+
+      - name: Commit updated state
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: last_results.json
+          message: "Update last_results.json"
