@@ -39,16 +39,27 @@ def telegram_send(text: str) -> None:
 
 
 def get_latest_ranked_game(account_tuple):
-    region, name, tag = account_tuple
-    opgg   = OPGG()                      # one client per run is enough
-    summoner = opgg.get_summoner(f"{name}#{tag}", Region[region])
-    last_match = summoner.matches[0]     # already sorted newest-first
+    region, name, tag = account_tuple          # ("NA", "LinguetySpaghett", "YoBro")
+    opgg   = OPGG()                            # one client is plenty
+
+    # 1️⃣  Search the Riot-ID → returns a list of SearchResult objects
+    hits = opgg.search(f"{name}#{tag}", Region[region])
+    if not hits:
+        raise RuntimeError("summoner not found")
+
+    # 2️⃣  Promote the first hit to a fully-hydrated SummonerDetail
+    summoner = hits[0].to_detail()             # .to_detail() is cheap (~2 kB JSON)
+
+    # 3️⃣  Pick newest *Ranked Solo* game
+    last = next(m for m in summoner.matches          # already newest-first
+                if m.queue_type == "RANKED_SOLO_5x5")
+
     return {
-        "gameId":  last_match.id,
-        "isWin":   last_match.result == "Victory",
-        "champ":   last_match.champion_name,
-        "time":    last_match.played_at.isoformat(),
-        "queue":   last_match.queue_type,
+        "gameId": last.id,
+        "isWin":  last.result == "Victory",
+        "champ":  last.champion_name,
+        "time":   last.played_at.isoformat(),
+        "queue":  last.queue_type,
     }
 
 
