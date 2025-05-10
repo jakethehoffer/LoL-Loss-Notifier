@@ -1,114 +1,52 @@
-import os, json, time
-import requests
-from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
+# lol_notifier.py  – “no-key” version
+import os, json, re, html, time, requests
 
-FORCE_ALERT = False
-
-# ── CONFIG ───────────────────────────────────────────────────────────
-FRIENDS = {
-    "LinguetySpaghett": "https://op.gg/summoners/na/LinguetySpaghett-YoBro?queue_type=SOLORANKED",
-    "Xraydady":        "https://op.gg/summoners/na/Xraydady-9201?queue_type=SOLORANKED",
-    "lzsanji":          "https://op.gg/lol/summoners/na/lzsanji-WNDRN?queue_type=SOLORANKED"
-    # add more friends here as "Name": "Full-URL"
-}
+HEADERS = {"User-Agent": "Mozilla/5.0 (loss-notifier)"}   # spoof a real browser
 STATE_FILE = "last_results.json"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+FRIENDS = {
+    "LinguetySpaghett": "LinguetySpaghett-YoBro",
+    "Xraydady":         "Xraydady-9201",
+    "lzsanji":          "lzsanji-WNDRN",
 }
 
-# ─────────────────────────────────────────────────────────────────────
-
-# Pull your bot creds from environment variables
 TOKEN   = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
-print("DEBUG: Telegram token starts with:", TOKEN[:8], "…")
-print("DEBUG: Telegram chat_id starts with:", CHAT_ID[:5])
 
-def send_telegram_message(text):
-    url     = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text}
-    resp    = requests.post(url, data=payload, timeout=10)
-    print("DEBUG: Telegram API response:", resp.status_code, resp.text)
-    return resp.ok
+def telegram(txt):
+    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                  data={"chat_id": CHAT_ID, "text": txt}, timeout=10).raise_for_status()
 
-def load_state():
-    try:
-        with open(STATE_FILE) as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+def load():  return json.load(open(STATE_FILE)) if os.path.exists(STATE_FILE) else {}
+def save(x): json.dump(x, open(STATE_FILE, "w"))
 
-def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f)
+NEXT_RE = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 
-def get_last_result(url):
-    resp = requests.get(url)
-    resp.raise_for_status()
+def last_result(slug):
+    url  = f"https://www.op.gg/summoners/na/{slug}?queue_type=SOLORANKED"
+    raw  = requests.get(url, headers=HEADERS, timeout=10).text
+    blob = NEXT_RE.search(raw)
+    if not blob:
+        raise RuntimeError("__NEXT_DATA__ not found – layout changed?")
+    data = json.loads(html.unescape(blob.group(1)))
 
-    soup = BeautifulSoup(resp.text, "html.parser")
-
-    # look for a <strong> tag whose exact text is Victory or Defeat
-    result_tag = soup.find(
-        "strong",
-        string=lambda txt: txt and txt.strip() in ("Victory", "Defeat")
-    )
-    if result_tag:
-        print(result_tag.string.strip())
-        return result_tag.string.strip()
-    else:
-        print("strip not found")
-        return None
-
+    # Path: props → pageProps → data → matches → games → games[0]
+    game = (data["props"]["pageProps"]["data"]["matches"]
+                ["games"]["games"][0])
+    return "Victory" if game["stats"]["win"] else "Defeat"
 
 def main():
-    opts = webdriver.ChromeOptions()
-    # point at the Chromium binary
-    opts.binary_location = "/usr/bin/chromium-browser"
-    opts.add_argument("--headless")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-
-    # tell Selenium where chromedriver lives (installed by apt)
-    service = Service("/usr/bin/chromedriver")
-
-    driver = webdriver.Chrome(service=service, options=opts)
-
-    state = load_state()
-
-    for name, url in FRIENDS.items():
+    state = load()
+    for name, slug in FRIENDS.items():
         try:
-            current = get_last_result(url)
-            last = state.get(name)
-
-            # ── DEBUG/TEST NOTIFICATION LOGIC ─────────────────────
-            notify = False
-            if FORCE_ALERT:
-                notify = True
-            elif last and current == "Defeat" and last != current:
-                notify = True
-
-            if notify:
-                msg = f"👎 {name} just lost a ranked game!"
-                print(f"DEBUG: Sending alert for {name}")
-                ok = send_telegram_message(msg)
-                print("DEBUG: send_telegram_message returned", ok)
-            # ───────────────────────────────────────────────────────
-
-            state[name] = current
-            print(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {name}: {current}")
-
+            result = last_result(slug)
+            if state.get(name) != result and result == "Defeat":
+                telegram(f"👎  {name} just lost a ranked game!")
+            state[name] = result
+            print(time.strftime("%F %T"), name, result)
+            time.sleep(1)          # polite crawl
         except Exception as e:
-            print(f"Error checking {name}: {e}")
-
-    save_state(state)
-    driver.quit()
-
+            print("Error:", name, e)
+    save(state)
 
 if __name__ == "__main__":
     main()

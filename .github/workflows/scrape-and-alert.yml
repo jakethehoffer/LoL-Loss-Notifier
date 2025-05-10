@@ -1,51 +1,21 @@
-name: LoL Loss Notifier
+# scrape-and-alert.yml  (trimmed)
+steps:
+  - uses: actions/checkout@v4
 
-permissions:
-  contents: write
+  - uses: actions/setup-python@v4
+    with: { python-version: '3.x' }
 
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'
+  - name: Install deps
+    run: pip install requests
 
-jobs:
-  notify:
-    runs-on: ubuntu-latest
-    steps:
-      # 1) Checkout with write permissions
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
+  - name: Run notifier
+    env:
+      TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    run: python lol_notifier.py
 
-      # 2) Install Chrome & Chromedriver
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
-
-      # 3) Setup Python
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      # 4) Install Python libs (including selenium)
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt selenium
-
-      # 5) Run your notifier
-      - name: Run notifier
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python lol_notifier.py
-
-      # 6) Commit updated last_results.json back to repo
-      - name: Commit updated state
-        uses: EndBug/add-and-commit@v9
-        with:
-          author_name: github-actions
-          author_email: actions@github.com
-          message: 'Update last_results.json from workflow'
-          add: 'last_results.json'
+  - name: Commit state
+    uses: EndBug/add-and-commit@v9
+    with:
+      add: last_results.json
+      message: Update last_results.json
