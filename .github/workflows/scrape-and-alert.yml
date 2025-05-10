@@ -1,40 +1,34 @@
 name: LoL Loss Notifier
 
-permissions:
-  contents: write
-
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'   # every 5 minutes
+  schedule:                           # run every 5 min
+    - cron:  '*/5 * * * *'
+  workflow_dispatch:                  # manual “Run workflow” button
 
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          persist-credentials: true
+          python-version: '3.12'
 
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests cloudscraper
-
-      - name: Run notifier
+      - name: Run loss notifier
         env:
-          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_TOKEN:  ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python lol_notifier.py
 
-      - name: Commit updated state
-        uses: EndBug/add-and-commit@v9
-        with:
-          author_name: github-actions
-          author_email: actions@github.com
-          message: 'Update last_results.json from workflow'
-          add: 'last_results.json'
+      - name: Persist state file
+        run: |
+          git config --global user.email "bot@users.noreply.github.com"
+          git config --global user.name  "loss-notifier-action"
+          git add last_games.json
+          git commit -m "update state" || echo "nothing to commit"
+          git push

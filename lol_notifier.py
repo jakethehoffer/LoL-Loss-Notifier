@@ -1,88 +1,86 @@
 #!/usr/bin/env python3
-"""
-LoL Loss Notifier – Cloudflare-proof (no API key, no Selenium)
-"""
+import os, json, sys
+import requests
+from datetime import datetime, timezone
 
-import os, json, time, re, html, cloudscraper, requests
+from opgg.v2.opgg import OPGG
+from opgg.v2.params import Region        # opgg.py ≥2.0.0
 
-TOKEN   = os.environ["TELEGRAM_TOKEN"]
-CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
-
+# --- CONFIG ------------------------------------------------------------------
 FRIENDS = {
-    "LinguetySpaghett": "LinguetySpaghett-YoBro",
-    "Xraydady":         "Xraydady-9201",
-    "lzsanji":          "lzsanji-WNDRN",
+    # "DisplayName": (Region, "gameName", "tagLine")
+    "LinguetySpaghett": ("NA", "LinguetySpaghett", "YoBro"),
+    "Xraydady":        ("NA", "Xraydady",        "9201"),
+    "lzsanji":         ("NA", "lzsanji",         "WNDRN"),
 }
+STATE_FILE = "last_games.json"
+FORCE_ALERT = False            # set True to test alerts unconditionally
+# -----------------------------------------------------------------------------
 
-STATE_FILE = "last_results.json"
-
-# ── Cloudflare-aware scraper (remove requestTimeout) ──────────────────
-scraper = cloudscraper.create_scraper(
-    browser={"browser": "chrome", "platform": "windows", "mobile": False},
-    delay=5,                       # seconds to wait between challenge retries
-)
-scraper.request_timeout = 15       # optional global timeout
-scraper.headers.update({
-    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                   "AppleWebKit/537.36 (KHTML, like Gecko) "
-                   "Chrome/124.0.0.0 Safari/537.36"),
-    "Accept-Language": "en-US,en;q=0.9",
-})
-
-NEXT_RE = re.compile(
-    r'<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S
-)
-
-# ── helpers ───────────────────────────────────────────────────────────
-def telegram(text: str) -> None:
-    r = requests.post(
-        f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-        data={"chat_id": CHAT_ID, "text": text},
-        timeout=10,
-    )
-    r.raise_for_status()
 
 def load_state() -> dict:
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE) as f:
-            return json.load(f)
-    return {}
+    if not os.path.exists(STATE_FILE):
+        return {}
+    with open(STATE_FILE, "r", encoding="utf-8") as fp:
+        return json.load(fp)
 
-def save_state(s: dict) -> None:
-    with open(STATE_FILE, "w") as f:
-        json.dump(s, f)
 
-def last_result(slug: str) -> str:
-    url  = f"https://www.op.gg/summoners/na/{slug}?queue_type=SOLORANKED"
-    raw  = scraper.get(url).text
-    match = NEXT_RE.search(raw)
-    if not match:
-        raise RuntimeError("__NEXT_DATA__ tag not found (blocked or layout changed)")
-    data = json.loads(html.unescape(match.group(1)))
-    game = (data["props"]["pageProps"]["data"]["matches"]
-                 ["games"]["games"][0])
-    return "Victory" if game["stats"]["win"] else "Defeat"
+def save_state(state: dict) -> None:
+    with open(STATE_FILE, "w", encoding="utf-8") as fp:
+        json.dump(state, fp, indent=2)
 
-# ── main loop ─────────────────────────────────────────────────────────
-def main() -> None:
+
+def telegram_send(text: str) -> None:
+    token   = os.environ["TELEGRAM_TOKEN"]
+    chat_id = os.environ["TELEGRAM_CHAT_ID"]
+    url     = f"https://api.telegram.org/bot{token}/sendMessage"
+    resp = requests.post(url, data={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"})
+    resp.raise_for_status()     # blow up if Telegram rejected it
+
+
+def get_latest_ranked_game(account_tuple):
+    region, name, tag = account_tuple
+    opgg   = OPGG()                      # one client per run is enough
+    summoner = opgg.get_summoner(f"{name}#{tag}", Region[region])
+    last_match = summoner.matches[0]     # already sorted newest-first
+    return {
+        "gameId":  last_match.id,
+        "isWin":   last_match.result == "Victory",
+        "champ":   last_match.champion_name,
+        "time":    last_match.played_at.isoformat(),
+        "queue":   last_match.queue_type,
+    }
+
+
+def main():
     state = load_state()
+    alerted = False
 
-    for name, slug in FRIENDS.items():
+    for friend, acct in FRIENDS.items():
         try:
-            current = last_result(slug)
-            last    = state.get(name)
-
-            if current == "Defeat" and current != last:
-                telegram(f"👎  {name} just lost a ranked solo-queue game!")
-                print(f"{time.strftime('%F %T')}  Alert sent for {name}")
-
-            state[name] = current
-            print(f"{time.strftime('%F %T')}  {name}: {current}")
-            time.sleep(1)  # polite crawling
+            info = get_latest_ranked_game(acct)
         except Exception as e:
-            print(f"Error: {name} – {e}")
+            print(f"[{friend}] scrape failed: {e}", file=sys.stderr)
+            continue
+
+        prev_id = state.get(friend, {}).get("gameId")
+        if info["gameId"] == prev_id and not FORCE_ALERT:
+            continue                             # nothing new
+
+        state[friend] = info                     # update cache
+
+        if not info["isWin"]:                    # loss detected
+            msg = (f"*{friend}* just **LOST** a Solo-Q game "
+                   f"as {info['champ']} @ {info['time'][:19]} UTC")
+            telegram_send(msg)
+            alerted = True
 
     save_state(state)
+    if alerted:
+        print("Alerts sent.")
+    else:
+        print("No new losses.")
+
 
 if __name__ == "__main__":
     main()

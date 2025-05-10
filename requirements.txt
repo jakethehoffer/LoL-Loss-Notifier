@@ -1,2 +1,3 @@
-requests
-cloudscraper
+# League-loss notifier — Python dependencies
+opgg.py==2.0.4      # wrapper around OP.GG’s v2 API released 2025-03-14
+requests>=2.31,<3   # standard HTTP client, used to hit Telegram Bot API
