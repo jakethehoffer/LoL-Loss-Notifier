@@ -15,7 +15,7 @@ CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 def telegram(txt):
     requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
                   data={"chat_id": CHAT_ID, "text": txt}, timeout=10).raise_for_status()
-
+#
 def load():  return json.load(open(STATE_FILE)) if os.path.exists(STATE_FILE) else {}
 def save(x): json.dump(x, open(STATE_FILE, "w"))
 
